@@ -15,6 +15,7 @@ client = TelegramClient('#####', api_id, api_hash,auto_reconnect=True,connection
 
 
 links=[]
+lock=threading.RLock()
 
 ############################ SEZIONE THREAD ###############################
 ##### IL THREAD MANTIENE UN QUARTO D'ORA IL LINK NEI LINK SALVATI #########
@@ -111,7 +112,7 @@ def get_url(testo):
 ############## INIZIO SEZIONE MESSAGGIO ##############
 @client.on(events.NewMessage)
 async def my_event_handler(event):
-
+    global lock
 
 
     if ('ERRORE PREZZO').casefold() in event.raw_text.casefold() \
@@ -128,11 +129,12 @@ async def my_event_handler(event):
         url=get_url(testo)
         
         if event.sender.id==########: #se il messaggio lo mando io, arriva solo al bot
+            lock.acquire()
             if url=="":
                 await client.send_message(idBot,event.text)
             elif url not in links:
                 await client.send_message(idBot,event.text)
-                ControllerThread(url,lock).start()
+                ControllerThread(url).start()
                 if "https://www.amazon.it/dp/" in url:
                     try:
                         screen("https://keepa.com/#!product/8-"+get_asin(url))
@@ -141,7 +143,7 @@ async def my_event_handler(event):
                         await client.send_message(idBot,'Grafico non disponibile, mi fido di te!' )
                 else:
                     print(url+" ripetuto: inoltro annullato")
-
+            lock.release()
 
 
         elif event.sender.id!=################ : #serve ad evitare che il bot mandi il messaggio in loop
@@ -153,7 +155,6 @@ async def my_event_handler(event):
 
             lock.acquire()
             if url not in links and url!="":
-                lock.release()
             ##################### SE URL NON È PRESENTE IN LINKS DEVO INVIARLO ###############################
                 await client.send_message(idBot,event.text)
                 await client.send_message(idGruppo,event.text)
@@ -168,7 +169,8 @@ async def my_event_handler(event):
                         await client.send_message(idGruppo,'Grafico non disponibile, mi fido di te!' )
             elif url!="":
                 print(url+" ripetuto: inoltro annullato")
-                lock.release()
+                
+            lock.release()
 
     else:
         testo=event.text
