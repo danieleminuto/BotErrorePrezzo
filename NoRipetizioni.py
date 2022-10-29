@@ -1,5 +1,6 @@
 import http.client
 import urllib
+import http.client
 import threading
 from threading import Thread
 import requests
@@ -7,46 +8,32 @@ import time
 
 from telethon import TelegramClient, events, sync
 
-api_id = ##########
-api_hash = '########################'
-client = TelegramClient('#####', api_id, api_hash,auto_reconnect=True,connection_retries=-1)
-
-
-
-
+api_id = ###########
+api_hash = '#################################'
+client = TelegramClient('###########', api_id, api_hash,auto_reconnect=True,connection_retries=-1)
 links=[]
 lock=threading.RLock()
+idBot = '###########'
+idGruppo = '######################'
 
-############################ SEZIONE THREAD ###############################
-##### IL THREAD MANTIENE UN QUARTO D'ORA IL LINK NEI LINK SALVATI #########
-class ControllerThread(Thread):
-    def __init__(self,link,lock):
-        Thread.__init__(self)
-        self.link=link
-        self.lock=lock
+def ins_rem(link):
+    global links
+    lock.acquire()
+    links.append(link)
+    lock.release()
 
-    def run(self):
-        self.lock.acquire()
-        links.append(self.link)
-        self.lock.release()
+    time.sleep(60*30)
 
-        time.sleep(60*30) #dorme 30 minuti
-
-        self.lock.acquire()
-        links.remove(self.link)
-        self.lock.release()
-
-
-############################ FINE SEZIONE THREAD ###############################
+    lock.acquire()
+    links.remove(link)
+    lock.release()
 
 
 #################### SCREENSHOT KEEPA #######################
-
 def screen(url):
-    BASE = 'https://mini.s-shot.ru/1024x0/JPEG/1024/Z90/?' # you can modify size, format, zoom
-    print(url)
-    url = urllib.parse.quote_plus(url) #service needs link to be joined in encoded format
-    
+    BASE = 'https://mini.s-shot.ru/1024x0/JPEG/1024/Z90/?'  # you can modify size, format, zoom
+    url = urllib.parse.quote_plus(url)  # service needs link to be joined in encoded format
+
     path = 'target1.jpg'
     response = requests.get(BASE + url, stream=True)
 
@@ -54,9 +41,10 @@ def screen(url):
         with open(path, 'wb') as file:
             for chunk in response:
                 file.write(chunk)
-
 #################### FINE SCREENSHOT KEEPA #######################
 
+
+#################### UTILITY SECTION #######################
 
 def unshorten_url(url):
     parsed = urllib.parse.urlparse(url)
@@ -108,86 +96,87 @@ def get_url(testo):
 
     return ret
 
+#true lo manda a tutti, false solo a me
+async def invia_messaggio(bool,url, testo):
+    if url == "":
+        if bool:
+            await client.send_message(idBot, testo)
+            await client.send_message(idGruppo, testo)
+        else:
+            await client.send_message(idBot, testo)
 
-############## INIZIO SEZIONE MESSAGGIO ##############
-@client.on(events.NewMessage)
-async def my_event_handler(event):
-    global lock
+    elif url not in links:
+        t = Thread(target=ins_rem, args=(url,))
+        t.start()
 
+        if bool:
+            await client.send_message(idBot, testo)
+            await client.send_message(idGruppo, testo)
+        else:
+            await client.send_message(idBot, testo)
 
-    if ('ERRORE PREZZO').casefold() in event.raw_text.casefold() \
-            or ('ERRORE di PREZZO').casefold() in event.raw_text.casefold() \
-            or ('ERRORE o bomba').casefold() in event.raw_text.casefold() \
-            or ('possibile ERRORE').casefold() in event.raw_text.casefold()\
-            or ('bomba ERRORE').casefold() in event.raw_text.casefold():
-        sender = await event.get_sender();
-        idBot='#######'
-        idGruppo='#########'
-
-        ############################ EVITO RIPETIZIONI DI LINK ###############################
-        testo=event.text
-        url=get_url(testo)
-        
-        if event.sender.id==########: #se il messaggio lo mando io, arriva solo al bot
-            lock.acquire()
-            if url=="":
-                await client.send_message(idBot,event.text)
-            elif url not in links:
-                await client.send_message(idBot,event.text)
-                ControllerThread(url).start()
-                if "https://www.amazon.it/dp/" in url:
+        if "https://www.amazon.it/dp/" in url:
+                if(bool):
                     try:
-                        screen("https://keepa.com/#!product/8-"+get_asin(url))
-                        await client.send_file(idBot,'./target1.jpg')
+                        screen("https://keepa.com/#!product/8-" + get_asin(url))
+                        await client.send_file(idBot, './target1.jpg')
+                        await client.send_file(idGruppo, './target1.jpg')
                     except:
-                        await client.send_message(idBot,'Grafico non disponibile, mi fido di te!' )
+                        await client.send_message(idBot, 'Grafico non disponibile, mi fido di te!')
+                        await client.send_message(idGruppo, 'Grafico non disponibile, mi fido di te!')
                 else:
-                    print(url+" ripetuto: inoltro annullato")
-            lock.release()
-
-
-        elif event.sender.id!=################ : #serve ad evitare che il bot mandi il messaggio in loop
-
-            ############################ SE URL È VUOTO SIGNIFICA CHE NON È STATO RICONOSCIUTO, NEL DUBBIO LO MANDO ###############################
-            if url=="":
-                await client.send_message(idBot,event.text)
-                await client.send_message(idGruppo,event.text)
-
-            lock.acquire()
-            if url not in links and url!="":
-            ##################### SE URL NON È PRESENTE IN LINKS DEVO INVIARLO ###############################
-                await client.send_message(idBot,event.text)
-                await client.send_message(idGruppo,event.text)
-                ControllerThread(url,lock).start()
-                if "https://www.amazon.it/dp/" in url:
                     try:
-                        screen("https://keepa.com/#!product/8-"+get_asin(url))
-                        await client.send_file(idBot,'./target1.jpg')
-                        await client.send_file(idGruppo,'./target1.jpg')
+                        screen("https://keepa.com/#!product/8-" + get_asin(url))
+                        await client.send_file(idBot, './target1.jpg')
                     except:
-                        await client.send_message(idBot,'Grafico non disponibile, mi fido di te!' )
-                        await client.send_message(idGruppo,'Grafico non disponibile, mi fido di te!' )
-            elif url!="":
-                print(url+" ripetuto: inoltro annullato")
-                
-            lock.release()
-
-    else:
-        testo=event.text
-        sender=await event.get_sender()
-        url=get_url(testo)
-        if event.sender.id== #### and "https://www.amazon.it/" in url:
-            screen("https://keepa.com/#!product/8-"+get_asin(url))
-            await client.send_file(##########,'./target1.jpg')
-                
+                        await client.send_message(idBot, 'Grafico non disponibile, mi fido di te!')
 
 
+#################### END UTILITY SECTION #######################
+
+################### INIZIO SEZIONE MESSAGGIO ###################
+@client.on(events.NewMessage(from_users=[###########]))
+async def handler(event):
+    try:
+        usr = await event.get_sender()
+        usr = usr.id
+        testo = event.text
+        url = get_url(testo)
+
+        if usr != ########### and ('ERRORE PREZZO').casefold() in event.raw_text.casefold() \
+                or ('ERRORE di PREZZO').casefold() in event.raw_text.casefold() \
+                or ('possibile ERRORE').casefold() in event.raw_text.casefold():
+
+                await invia_messaggio(False,url,testo)
+
+        elif "https://www.amazon.it/dp/" in url:
+            try:
+                screen("https://keepa.com/#!product/8-" + get_asin(url))
+                await client.send_file('###########', './target1.jpg')
+            except:
+                await client.send_message('###########', 'Grafico non disponibile, mi fido di te!')
+    except:
+        pass
 
 
-############## FINE SEZIONE MESSAGGIO ##############
+@client.on(events.NewMessage())
+async def handler(event):
+    try:
+        usr = await event.get_sender()
+        usr = usr.id
+        if usr!=########### and usr!=########### and (('ERRORE PREZZO').casefold() in event.raw_text.casefold() \
+                or ('ERRORE di PREZZO').casefold() in event.raw_text.casefold() \
+                or ('possibile ERRORE').casefold() in event.raw_text.casefold()):
+            testo = event.text
+            url = get_url(testo)
+            await invia_messaggio(True, url, testo)
+    except:
+        pass
+
 
 client.start()
 client.loop.run_forever()
+
 
 
 
